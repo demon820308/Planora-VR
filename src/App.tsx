@@ -137,12 +137,26 @@ const App = () => {
   const [labMode, setLabMode] = useState<string | null>(null)
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const lab = params.get('lab')
-    const normalizedMode = lab === 'floorplan' ? 'floorplan' : null
-    setLabMode(normalizedMode)
-    document.body.classList.toggle('floorplan-lab-mode', normalizedMode === 'floorplan')
+    const syncFromLocation = () => {
+      const params = new URLSearchParams(window.location.search)
+      const lab = params.get('lab')
+      setLabMode(lab === 'floorplan' ? 'floorplan' : null)
+    }
+
+    syncFromLocation()
+    window.addEventListener('popstate', syncFromLocation)
+
+    return () => {
+      window.removeEventListener('popstate', syncFromLocation)
+    }
   }, [])
+
+  useEffect(() => {
+    document.body.classList.toggle('floorplan-lab-mode', labMode === 'floorplan')
+    return () => {
+      document.body.classList.remove('floorplan-lab-mode')
+    }
+  }, [labMode])
 
   const navigateTo = (newLabMode: string | null) => {
     const url = new URL(window.location.href)
@@ -151,7 +165,8 @@ const App = () => {
     } else {
       url.searchParams.delete('lab')
     }
-    window.location.href = url.toString()
+    window.history.pushState({}, '', url.toString())
+    setLabMode(newLabMode)
   }
 
   const handleLabButtonClick = () => {

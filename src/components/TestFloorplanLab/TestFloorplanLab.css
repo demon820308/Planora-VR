@@ -43,6 +43,20 @@
   max-width: 720px;
 }
 
+.lab-inline-notice {
+  margin: 10px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #ddd3c6;
+  background: rgba(255, 255, 255, 0.72);
+  color: #6b625a;
+  font-size: 12px;
+}
+
 .lab-actions {
   display: flex;
   gap: 10px;
@@ -140,6 +154,23 @@
   margin: 0;
   font-size: 18px;
   letter-spacing: -0.02em;
+}
+
+.card-heading-main {
+  min-width: 0;
+}
+
+.card-heading-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.compact-button {
+  padding: 7px 12px;
+  font-size: 12px;
+  min-height: 34px;
 }
 
 .card-note {

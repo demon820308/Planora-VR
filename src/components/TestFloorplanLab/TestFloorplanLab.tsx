@@ -8,6 +8,7 @@ import {
 } from '../../utils/floorplanAuto'
 import {
   clearFloorplanOverrides,
+  loadFloorplanOverrides,
   saveFloorplanOverrides
 } from '../../utils/floorplanOverrides'
 import { recognizeFloorplanLabels } from '../../utils/floorplanOcr'
@@ -30,6 +31,18 @@ import './TestFloorplanLab.css'
 
 type OcrStatus = 'idle' | 'running' | 'done' | 'error'
 
+interface FloorplanLabDraft {
+  selectedStyleName: string
+  threshold: number
+  dilation: number
+  minArea: number
+  sourceImageUrl: string | null
+  imageSize: ImageSize | null
+  regions: EditableRegion[]
+  selectedRegionId: string | null
+  ocrStatus: OcrStatus
+}
+
 interface EditableRegion extends FloorplanRegion {
   label: string
   enabled: boolean
@@ -49,6 +62,7 @@ interface ImportReport {
 
 const FLOORPLAN_NAME_PATTERN = /^户型图\.(png|jpg|jpeg|webp)$/i
 const IMAGE_FILE_PATTERN = /\.(png|jpg|jpeg|webp)$/i
+const FLOORPLAN_LAB_DRAFT_STORAGE_KEY = 'vr-panorama-floorplan-lab-draft'
 
 const defaultRegionLabel = (index: number) => `区域 ${index + 1}`
 
@@ -119,23 +133,65 @@ const buildImportAlert = (report: ImportReport) => {
   return lines.join('\n')
 }
 
+const loadFloorplanLabDraft = (): FloorplanLabDraft | null => {
+  if (typeof window === 'undefined') return null
+
+  const raw = window.sessionStorage.getItem(FLOORPLAN_LAB_DRAFT_STORAGE_KEY)
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<FloorplanLabDraft>
+    if (!Array.isArray(parsed.regions)) return null
+
+    return {
+      selectedStyleName: parsed.selectedStyleName?.trim() || '',
+      threshold: typeof parsed.threshold === 'number' ? parsed.threshold : 222,
+      dilation: typeof parsed.dilation === 'number' ? parsed.dilation : 1,
+      minArea: typeof parsed.minArea === 'number' ? parsed.minArea : 1200,
+      sourceImageUrl: parsed.sourceImageUrl || null,
+      imageSize: parsed.imageSize && typeof parsed.imageSize.width === 'number' && typeof parsed.imageSize.height === 'number'
+        ? parsed.imageSize
+        : null,
+      regions: parsed.regions,
+      selectedRegionId: parsed.selectedRegionId || null,
+      ocrStatus: parsed.ocrStatus === 'running' ? 'idle' : (parsed.ocrStatus || 'idle')
+    }
+  } catch {
+    return null
+  }
+}
+
+const saveFloorplanLabDraft = (draft: FloorplanLabDraft) => {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(FLOORPLAN_LAB_DRAFT_STORAGE_KEY, JSON.stringify(draft))
+}
+
+const clearFloorplanLabDraft = () => {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.removeItem(FLOORPLAN_LAB_DRAFT_STORAGE_KEY)
+}
+
 export const TestFloorplanLab = () => {
   const initialConfig = useMemo(() => loadPanoramaSourceConfig(), [])
-  const [selectedStyleName, setSelectedStyleName] = useState(initialConfig.selectedStyleName)
-  const [threshold, setThreshold] = useState(222)
-  const [dilation, setDilation] = useState(1)
-  const [minArea, setMinArea] = useState(1200)
+  const initialDraft = useMemo(() => loadFloorplanLabDraft(), [])
+  const [selectedStyleName, setSelectedStyleName] = useState(
+    initialDraft?.selectedStyleName || initialConfig.selectedStyleName
+  )
+  const [threshold, setThreshold] = useState(initialDraft?.threshold ?? 222)
+  const [dilation, setDilation] = useState(initialDraft?.dilation ?? 1)
+  const [minArea, setMinArea] = useState(initialDraft?.minArea ?? 1200)
   const [sourceImageFile, setSourceImageFile] = useState<File | null>(null)
-  const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(null)
-  const [imageSize, setImageSize] = useState<ImageSize | null>(null)
-  const [regions, setRegions] = useState<EditableRegion[]>([])
-  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(null)
+  const [sourceImageUrl, setSourceImageUrl] = useState<string | null>(initialDraft?.sourceImageUrl || null)
+  const [imageSize, setImageSize] = useState<ImageSize | null>(initialDraft?.imageSize || null)
+  const [regions, setRegions] = useState<EditableRegion[]>(initialDraft?.regions || [])
+  const [selectedRegionId, setSelectedRegionId] = useState<string | null>(initialDraft?.selectedRegionId || null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [ocrStatus, setOcrStatus] = useState<OcrStatus>('idle')
+  const [ocrStatus, setOcrStatus] = useState<OcrStatus>(initialDraft?.ocrStatus || 'idle')
   const [errorText, setErrorText] = useState<string | null>(null)
   const [importReport, setImportReport] = useState<ImportReport | null>(null)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
+  const [saveNotice, setSaveNotice] = useState<string | null>(null)
   const folderInputRef = useRef<HTMLInputElement | null>(null)
 
   const selectedRegion = useMemo(
@@ -164,6 +220,90 @@ export const TestFloorplanLab = () => {
       folderInputRef.current.setAttribute('directory', '')
     }
   }, [])
+
+  useEffect(() => {
+    if (sourceImageUrl || imageSize || regions.length > 0) return
+
+    const applied = loadFloorplanOverrides()
+    if (!applied?.previewImageUrl || !applied.viewBox || applied.regions.length === 0) {
+      return
+    }
+
+    const restoredRegions: EditableRegion[] = applied.regions.map((region, index) => {
+      const points = region.points
+        .trim()
+        .split(/\s+/)
+        .map(point => point.split(',').map(value => Number(value)) as [number, number])
+        .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y))
+
+      if (points.length < 3) {
+        return null
+      }
+
+      const xs = points.map(([x]) => x)
+      const ys = points.map(([, y]) => y)
+      const minX = Math.min(...xs)
+      const maxX = Math.max(...xs)
+      const minY = Math.min(...ys)
+      const maxY = Math.max(...ys)
+      const area = Math.abs(points.reduce((sum, [x1, y1], pointIndex) => {
+        const [x2, y2] = points[(pointIndex + 1) % points.length]
+        return sum + x1 * y2 - x2 * y1
+      }, 0)) / 2
+
+      return {
+        id: `region-${index + 1}`,
+        label: region.label,
+        enabled: region.enabled,
+        points,
+        bounds: {
+          x: minX,
+          y: minY,
+          width: maxX - minX,
+          height: maxY - minY
+        },
+        area,
+        centroid: points.reduce(
+          (acc, [x, y]) => ({ x: acc.x + x / points.length, y: acc.y + y / points.length }),
+          { x: 0, y: 0 }
+        )
+      }
+    }).filter((region): region is EditableRegion => region !== null)
+
+    if (restoredRegions.length === 0) return
+
+    setSourceImageUrl(applied.previewImageUrl)
+    setImageSize(applied.viewBox)
+    setRegions(restoredRegions)
+    setSelectedRegionId(restoredRegions[0]?.id || null)
+    setOcrStatus('done')
+  }, [imageSize, regions.length, sourceImageUrl])
+
+  useEffect(() => {
+    saveFloorplanLabDraft({
+      selectedStyleName,
+      threshold,
+      dilation,
+      minArea,
+      sourceImageUrl,
+      imageSize,
+      regions,
+      selectedRegionId,
+      ocrStatus
+    })
+  }, [dilation, imageSize, minArea, ocrStatus, regions, selectedRegionId, selectedStyleName, sourceImageUrl, threshold])
+
+  useEffect(() => {
+    if (!saveNotice) return
+
+    const timeoutId = window.setTimeout(() => {
+      setSaveNotice(null)
+    }, 2400)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [saveNotice])
 
   useEffect(() => {
     let cancelled = false
@@ -334,11 +474,21 @@ export const TestFloorplanLab = () => {
       }))
     })
 
+    setSaveNotice('当前设置已保存，并同步到首页。')
     window.dispatchEvent(new Event('floorplan-overrides-updated'))
   }
 
   const handleClearHomepageApply = () => {
     clearFloorplanOverrides()
+    clearFloorplanLabDraft()
+    setSourceImageFile(null)
+    setSourceImageUrl(null)
+    setImageSize(null)
+    setRegions([])
+    setSelectedRegionId(null)
+    setOcrStatus('idle')
+    setErrorText(null)
+    setSaveNotice('首页应用和设置页当前草稿已清除。')
     window.dispatchEvent(new Event('floorplan-overrides-updated'))
   }
 
@@ -480,11 +630,11 @@ export const TestFloorplanLab = () => {
     <div className="floorplan-lab">
       <header className="lab-header">
         <div className="lab-heading">
-          <span className="lab-kicker">户型图自动热区测试</span>
+          <span className="lab-kicker">Planora VR设置</span>
           <h1>上传一张极简二维平面图，自动生成 SVG 热区</h1>
           <p className="lab-subtitle">分析封闭房间区域，识别房间名</p>
         </div>
-
+          {saveNotice && <p className="lab-inline-notice">{saveNotice}</p>}
         <div className="lab-actions">
           <label className="upload-button">
             上传白底户型导航图
@@ -520,7 +670,7 @@ export const TestFloorplanLab = () => {
             className="secondary-button"
             onClick={handleClearHomepageApply}
           >
-            清除首页应用
+            清除设置
           </button>
           <button
             type="button"
@@ -536,9 +686,19 @@ export const TestFloorplanLab = () => {
         <div className="lab-stack">
           <section className="preview-card">
             <div className="card-heading">
-              <div>
+              <div className="card-heading-main">
                 <span className="section-label">输入图</span>
-                <h2>原始上传图 + 自动描边</h2>
+                <div className="card-heading-inline">
+                  <h2>原始上传图 + 自动描边</h2>
+                  <button
+                    type="button"
+                    className="secondary-button compact-button"
+                    onClick={() => void handleReanalyze()}
+                    disabled={!sourceImageUrl || isAnalyzing}
+                  >
+                    {isAnalyzing ? '重新分析中...' : '重新分析热区'}
+                  </button>
+                </div>
               </div>
 
               <div className="status-pills">
@@ -580,17 +740,6 @@ export const TestFloorplanLab = () => {
                   onChange={event => setMinArea(Number(event.target.value))}
                 />
               </label>
-            </div>
-
-            <div className="config-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => void handleReanalyze()}
-                disabled={!sourceImageUrl || isAnalyzing}
-              >
-                {isAnalyzing ? '重新分析中...' : '重新分析热区'}
-              </button>
             </div>
 
             <div className="floorplan-stage">
