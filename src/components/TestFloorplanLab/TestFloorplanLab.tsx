@@ -14,8 +14,14 @@ import { recognizeFloorplanLabels } from '../../utils/floorplanOcr'
 import {
   clearImportedStyleAssets,
   getImportedAssetSummary,
+  getImportedStyleAssets,
   replaceImportedStyleAssets
 } from '../../utils/projectImageAssets'
+import {
+  buildOfflinePackageName,
+  convertDataUrlToNamedBlob,
+  exportOfflinePackage
+} from '../../utils/offlineExport'
 import {
   loadPanoramaSourceConfig,
   savePanoramaSourceConfig
@@ -129,6 +135,7 @@ export const TestFloorplanLab = () => {
   const [errorText, setErrorText] = useState<string | null>(null)
   const [importReport, setImportReport] = useState<ImportReport | null>(null)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const folderInputRef = useRef<HTMLInputElement | null>(null)
 
   const selectedRegion = useMemo(
@@ -335,6 +342,58 @@ export const TestFloorplanLab = () => {
     window.dispatchEvent(new Event('floorplan-overrides-updated'))
   }
 
+  const handleExportOfflinePackage = async () => {
+    if (!sourceImageUrl || !imageSize || namedRegions.length === 0) {
+      setErrorText('请先完成热区识别和房间命名，再导出离线包。')
+      return
+    }
+
+    setIsExporting(true)
+    setErrorText(null)
+
+    try {
+      const importedAssets = await getImportedStyleAssets(selectedStyleName)
+      const panoramaByRoomName = new Map(
+        importedAssets.panoramas.map(item => [normalizeName(item.roomName), item.fileName])
+      )
+
+      const floorplanFileName = sourceImageFile?.name
+        ? `floorplan${sourceImageFile.name.slice(sourceImageFile.name.lastIndexOf('.')) || '.png'}`
+        : 'floorplan.png'
+
+      const floorplan = await convertDataUrlToNamedBlob(sourceImageUrl, floorplanFileName)
+
+      await exportOfflinePackage({
+        siteName: 'Planora',
+        styleName: selectedStyleName,
+        currentRoomId: namedRegions[0]?.label || namedRegions[0]?.id || '',
+        rooms: namedRegions.map(region => ({
+          id: normalizeName(region.label),
+          name: normalizeName(region.label),
+          polygon: regionsToSvgPoints(region.points),
+          panoramaFileName: panoramaByRoomName.get(normalizeName(region.label)) || null,
+          defaultYaw: 0,
+          defaultPitch: 0,
+          defaultHfov: 100
+        })),
+        floorplan: {
+          fileName: floorplan.fileName,
+          blob: floorplan.blob,
+          viewBox: imageSize
+        },
+        sidebarFloorplan: importedAssets.sidebarFloorplan,
+        panoramas: importedAssets.panoramas.map(item => ({
+          fileName: item.fileName,
+          blob: item.blob
+        }))
+      })
+    } catch (error) {
+      setErrorText(error instanceof Error ? error.message : '导出离线包失败')
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const handleFolderImport = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
     event.target.value = ''
@@ -446,6 +505,15 @@ export const TestFloorplanLab = () => {
             disabled={!sourceImageUrl || regions.length === 0}
           >
             一键应用到首页
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void handleExportOfflinePackage()}
+            disabled={!sourceImageUrl || namedRegions.length === 0 || isExporting}
+            title={buildOfflinePackageName(selectedStyleName)}
+          >
+            {isExporting ? '导出中...' : '导出离线包'}
           </button>
           <button
             type="button"
@@ -797,12 +865,14 @@ export const TestFloorplanLab = () => {
               <section className="help-section">
                 <h3>1. 整体流程</h3>
                 <ol>
-                  <li>进入设置页，上传一张用于识别的极简二维平面图。</li>
-                  <li>系统先分析封闭房间区域，生成 SVG 热区。</li>
-                  <li>点击“自动识别热区名称”，让 PaddleOCR 读取房间名。</li>
-                  <li>确认热区名字无误后，选择当前项目风格。</li>
-                  <li>导入当前风格的整套效果图文件夹。</li>
+                  <li>进入设置页，上传一张白底户型导航图。</li>
+                  <li>系统分析封闭房间区域，生成 SVG 热区。</li>
+                  <li>点击“自动识别热区名称”，识别房间名。</li>
+                  <li>检查并少量修正热区名称，关闭不需要显示到首页的区域。</li>
+                  <li>选择当前项目风格。</li>
+                  <li>批量导入该风格的效果图文件夹。</li>
                   <li>点击“一键应用到首页”，回首页查看最终效果。</li>
+                  <li>如需离线交付，点击“导出离线包”。</li>
                 </ol>
               </section>
 
@@ -821,6 +891,7 @@ export const TestFloorplanLab = () => {
                   <li>上传图片后，系统会先生成默认热区名，例如“区域 1、区域 2”。</li>
                   <li>点击“自动识别热区名称”后，识别到的房间名会替换默认名字。</li>
                   <li>如果某个房间名识别不准，可以在右侧“当前热区”里手动修改。</li>
+                  <li>只有“有名字 + 已启用”的热区，才会进入首页房间列表。</li>
                   <li>不需要显示到首页的区域，可以关闭“可点击”。</li>
                 </ul>
               </section>
@@ -840,6 +911,7 @@ export const TestFloorplanLab = () => {
                   <li>房间效果图必须按“文件名主干 = 房间名”命名。</li>
                   <li>例如识别出的房间名是“主卧A、客厅、书房”，文件夹里就应存在“主卧A.jpg、客厅.png、书房.jpg”。</li>
                   <li>系统不区分 jpg、jpeg、png、webp，只看文件名主干是否与房间名一致。</li>
+                  <li>如果导入后提示“请检查效果图命名”，通常是文件名与房间名没有完全一致。</li>
                 </ul>
               </section>
 
@@ -857,11 +929,32 @@ export const TestFloorplanLab = () => {
                   <li>会把当前热区轮廓、房间名、启用状态和底部热点图一起同步到首页。</li>
                   <li>首页左侧房间列表只显示“有名字 + 已启用”的热区。</li>
                   <li>首页主视图会优先读取你刚导入到本地的房间效果图。</li>
+                  <li>首页左下角展示户型图会读取文件夹里的“户型图.png / 户型图.jpg”。</li>
                 </ul>
               </section>
 
               <section className="help-section">
-                <h3>8. 清除首页应用与清空当前风格图片</h3>
+                <h3>8. 导出离线包</h3>
+                <ul>
+                  <li>点击“导出离线包”后，会生成一个 zip，例如：<code>planora-意式风格-offline.zip</code>。</li>
+                  <li>离线包包含当前首页查看所需的配置、SVG 热区图、展示户型图和房间全景图。</li>
+                  <li>离线包打开的是查看版，不包含设置页、OCR 和重新编辑能力。</li>
+                  <li>如果你刚改完热区或刚导入图片，建议先“一键应用到首页”再导出。</li>
+                </ul>
+              </section>
+
+              <section className="help-section">
+                <h3>9. 离线包使用说明</h3>
+                <ul>
+                  <li>请使用最新导出的 zip，不要继续测试旧包。</li>
+                  <li>解压后直接打开 <code>index.html</code> 即可离线查看。</li>
+                  <li>离线包里已经内嵌图片资源，不需要联网，也不依赖本地路径映射。</li>
+                  <li>如果离线包样式或内容不对，通常是因为使用了旧导出包，请回设置页重新导出。</li>
+                </ul>
+              </section>
+
+              <section className="help-section">
+                <h3>10. 清除首页应用与清空当前风格图片</h3>
                 <ul>
                   <li>“清除首页应用”只会移除首页正在使用的热区和底部热点图结果。</li>
                   <li>“清空当前风格图片”会删除当前风格已导入到浏览器本地的效果图和展示户型图。</li>
@@ -870,17 +963,17 @@ export const TestFloorplanLab = () => {
               </section>
 
               <section className="help-section">
-                <h3>9. 常见问题</h3>
+                <h3>11. 常见问题</h3>
                 <ul>
                   <li>如果热区识别偏了，先调阈值，再重新分析热区。</li>
                   <li>如果房间名没识别出来，先检查原图中文是否清晰，再手动修改。</li>
-                  <li>如果导入后提示“请检查效果图命名”，通常是文件名与房间名没有完全一致。</li>
                   <li>如果首页没看到某个房间，先确认它是否有名字，并且“可点击”处于开启状态。</li>
+                  <li>如果离线包打不开或内容不对，先确认是否使用了重新导出的最新 zip。</li>
                 </ul>
               </section>
 
               <section className="help-section">
-                <h3>10. 推荐操作顺序</h3>
+                <h3>12. 推荐操作顺序</h3>
                 <ol>
                   <li>上传户型图。</li>
                   <li>重新分析热区，直到边界稳定。</li>
@@ -890,6 +983,7 @@ export const TestFloorplanLab = () => {
                   <li>批量导入效果图文件夹。</li>
                   <li>检查导入结果。</li>
                   <li>一键应用到首页。</li>
+                  <li>最后再导出离线包。</li>
                 </ol>
               </section>
             </div>

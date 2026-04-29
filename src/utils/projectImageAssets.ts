@@ -24,6 +24,19 @@ export interface ImportedAssetSummary {
   sidebarFloorplanFileName: string | null
 }
 
+export interface ImportedStyleAssets {
+  styleName: string
+  panoramas: Array<{
+    roomName: string
+    fileName: string
+    blob: Blob
+  }>
+  sidebarFloorplan: {
+    fileName: string
+    blob: Blob
+  } | null
+}
+
 const objectUrlCache = new Map<string, string>()
 
 const openDb = (): Promise<IDBDatabase> => new Promise((resolve, reject) => {
@@ -191,6 +204,32 @@ export const getImportedAssetSummary = async (styleName: string): Promise<Import
     styleName,
     panoramas,
     sidebarFloorplanFileName: sidebarFloorplan?.fileName || null
+  }
+}
+
+export const getImportedStyleAssets = async (styleName: string): Promise<ImportedStyleAssets> => {
+  const records = await getRecordsByStyle(styleName)
+
+  const panoramas = records
+    .filter(record => record.kind === 'panorama' && record.roomName)
+    .map(record => ({
+      roomName: record.roomName as string,
+      fileName: record.fileName,
+      blob: record.blob
+    }))
+    .sort((a, b) => a.roomName.localeCompare(b.roomName, 'zh-CN'))
+
+  const sidebarFloorplanRecord = records.find(record => record.kind === 'sidebar-floorplan')
+
+  return {
+    styleName,
+    panoramas,
+    sidebarFloorplan: sidebarFloorplanRecord
+      ? {
+          fileName: sidebarFloorplanRecord.fileName,
+          blob: sidebarFloorplanRecord.blob
+        }
+      : null
   }
 }
 
