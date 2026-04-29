@@ -1,0 +1,13 @@
+.room-selector {
+  background: rgba(255, 255, 255, 0.76);
+  backdrop-filter: blur(10px);
+  border-radius: 18px;
+  padding: 10px;
+  box-shadow: 0 2px 10px rgba(17, 12, 10, 0.08);
+}
+
+.room-selector .selector-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 6px;
+}

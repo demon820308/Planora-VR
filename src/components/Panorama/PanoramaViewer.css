@@ -1,0 +1,126 @@
+.panorama-viewer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.panorama-container-wrapper {
+  flex: 1;
+  min-height: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #ddd8d1;
+  border: 1px solid #d8d1c9;
+  position: relative;
+}
+
+.panorama-container {
+  width: 100%;
+  height: 100%;
+}
+
+.panorama-container .pnlm-container {
+  background: #ddd8d1;
+}
+
+.panorama-container .pnlm-controls-container {
+  top: 14px;
+  left: 14px;
+}
+
+.panorama-container .pnlm-controls {
+  margin-top: 8px;
+  background-color: transparent;
+  border: 0;
+  border-radius: 10px;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.panorama-container .pnlm-control:hover {
+  background-color: rgba(255, 248, 241, 0.44);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.panorama-container .pnlm-zoom-controls {
+  width: 28px;
+  height: 56px;
+  overflow: hidden;
+  background-color: rgba(255, 251, 247, 0.2);
+  border: 1px solid rgba(85, 68, 52, 0.26);
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(19, 13, 10, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.panorama-container .pnlm-zoom-in,
+.panorama-container .pnlm-zoom-out,
+.panorama-container .pnlm-fullscreen-toggle-button,
+.panorama-container .pnlm-orientation-button {
+  width: 28px;
+  height: 28px;
+  filter: none;
+}
+
+.panorama-container .pnlm-zoom-in:hover,
+.panorama-container .pnlm-zoom-out:hover,
+.panorama-container .pnlm-fullscreen-toggle-button:hover,
+.panorama-container .pnlm-orientation-button:hover {
+  filter: none;
+}
+
+.panorama-container .pnlm-zoom-out {
+  border-top-color: rgba(67, 52, 39, 0.12);
+}
+
+.panorama-container .pnlm-fullscreen-toggle-button,
+.panorama-container .pnlm-orientation-button {
+  margin-top: 8px;
+  background-color: rgba(255, 251, 247, 0.2);
+  border: 1px solid rgba(85, 68, 52, 0.26);
+  border-radius: 10px;
+  box-shadow: 0 8px 18px rgba(19, 13, 10, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.panorama-container .pnlm-zoom-in {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M14 8v12M8 14h12' stroke='rgba(255,255,255,0.5)' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: 28px 28px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.panorama-container .pnlm-zoom-out {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M8 14h12' stroke='rgba(255,255,255,0.5)' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-size: 28px 28px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.panorama-container .pnlm-fullscreen-toggle-button-inactive,
+.panorama-container .pnlm-fullscreen-toggle-button-active {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M9 5H5v4M19 5h4v4M23 19v4h-4M5 19v4h4' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: 28px 28px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.panorama-container .pnlm-zoom-in:hover,
+.panorama-container .pnlm-zoom-out:hover,
+.panorama-container .pnlm-fullscreen-toggle-button-inactive:hover,
+.panorama-container .pnlm-fullscreen-toggle-button-active:hover {
+  background-color: rgba(255, 248, 241, 0.44);
+}
+
+.panorama-container .pnlm-zoom-in:hover {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M14 8v12M8 14h12' stroke='rgba(255,255,255,0.9)' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.panorama-container .pnlm-zoom-out:hover {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M8 14h12' stroke='rgba(255,255,255,0.9)' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.panorama-container .pnlm-fullscreen-toggle-button-inactive:hover,
+.panorama-container .pnlm-fullscreen-toggle-button-active:hover {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M9 5H5v4M19 5h4v4M23 19v4h-4M5 19v4h4' fill='none' stroke='rgba(255,255,255,0.9)' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}

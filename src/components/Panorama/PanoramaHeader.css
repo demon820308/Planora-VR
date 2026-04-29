@@ -1,0 +1,66 @@
+.panorama-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 6px 12px;
+  padding-bottom: 8px;
+}
+
+.panorama-info {
+  min-width: 0;
+}
+
+.panorama-room-name {
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 700;
+  color: #272523;
+  letter-spacing: -0.02em;
+}
+
+.panorama-style-desc {
+  font-size: 11px;
+  color: #6f6861;
+  margin-top: 4px;
+}
+
+.panorama-tech-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid #e3ddd6;
+  color: #544f4a;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.panorama-path {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  color: #6f6861;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.path-label {
+  margin-right: 6px;
+}
+
+.path-value {
+  color: #4d4843;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+}
+
+@media (max-width: 900px) {
+  .panorama-room-name {
+    font-size: 22px;
+  }
+
+  .panorama-tech-info {
+    justify-self: start;
+  }
+}
