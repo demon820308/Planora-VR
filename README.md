@@ -2,6 +2,8 @@
 
 > 用于本地 VR 预览、房间切换和户型图导航。
 
+![Planora Preview](public/temp/index.png)
+
 [在线体验](https://planora-vr.netlify.app/)
 
 ---
